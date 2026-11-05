@@ -11,6 +11,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Install Qt runtime libraries
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libopengl0 libxkbcommon0 libxcb-cursor0
       - run: pip install PySide6
       - run: python -m compileall -q app.py tests
       - run: QT_QPA_PLATFORM=offscreen python -m unittest discover -s tests -v
