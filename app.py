@@ -108,6 +108,10 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.status)
         self.stats = QLabel("Packets: 0  |  Nodes: 0  |  Message types: 0")
         layout.addWidget(self.stats)
+        self.filter_input = QLineEdit()
+        self.filter_input.setPlaceholderText("Filter packets by node ID or message type...")
+        self.filter_input.textChanged.connect(self.apply_filter)
+        layout.addWidget(self.filter_input)
         self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["Time", "From", "Port", "RSSI", "SNR"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -127,6 +131,7 @@ class MainWindow(QMainWindow):
         self.table.insertRow(row)
         for col, key in enumerate(("time", "from", "type", "rssi", "snr")):
             self.table.setItem(row, col, QTableWidgetItem(data.get(key, "")))
+        self.apply_filter()
         self.table.scrollToBottom()
 
     def _radio_finished(self):
@@ -182,6 +187,12 @@ class MainWindow(QMainWindow):
             "rssi": str(random.randint(-120, -45)),
             "snr": str(round(random.uniform(-15, 12), 1)),
         })
+
+    def apply_filter(self):
+        query = self.filter_input.text().strip().casefold()
+        for index, packet in enumerate(self.rows):
+            searchable = " ".join(str(packet.get(key, "")) for key in ("from", "type")).casefold()
+            self.table.setRowHidden(index, bool(query) and query not in searchable)
 
     def clear_log(self):
         self.rows.clear()
