@@ -18,7 +18,7 @@ jobs:
           pip install -r requirements.txt
       - name: Build app
         run: |
-          pyinstaller --noconfirm --windowed --name 'Meshtastic Sniffer TCP' --collect-all meshtastic --collect-all pubsub app.py
+          pyinstaller --noconfirm --windowed --name 'Meshtastic Sniffer TCP' --collect-all meshtastic --collect-all pubsub --add-data 'dashboard.qss:.' app.py
           hdiutil create -volname 'Meshtastic Sniffer TCP' -srcfolder 'dist/Meshtastic Sniffer TCP.app' -ov -format UDZO dist/Meshtastic-Sniffer-TCP-Intel.dmg
       - uses: actions/upload-artifact@v4
         with:
