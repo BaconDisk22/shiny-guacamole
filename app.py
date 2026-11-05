@@ -104,7 +104,7 @@ class MainWindow(QMainWindow):
         for item in (self.host, self.connect_btn, self.disconnect_btn, self.demo_btn, clear_btn, export_btn):
             controls.addWidget(item)
         layout.addLayout(controls)
-        self.status = QLabel("Disconnected")
+        self.status = QLabel("● Disconnected")
         layout.addWidget(self.status)
         self.stats = QLabel("Packets: 0  |  Nodes: 0  |  Message types: 0")
         layout.addWidget(self.stats)
@@ -150,13 +150,13 @@ class MainWindow(QMainWindow):
         self.radio.status.connect(self.status.setText)
         self.radio.finished.connect(self._radio_finished)
         self.connect_btn.setEnabled(False)
-        self.status.setText("Connecting...")
+        self.status.setText("◌ Connecting to radio...")
         self.radio.start()
 
     def disconnect_radio(self):
         if self.radio is not None:
             self.radio.stop()
-            self.status.setText("Disconnecting...")
+            self.status.setText("◌ Disconnecting...")
         elif not self.demo.isActive():
             self.status.setText("Disconnected")
 
@@ -169,7 +169,7 @@ class MainWindow(QMainWindow):
             self.status.setText("Disconnect the radio before starting demo mode.")
             return
         self.demo.start(1200)
-        self.status.setText("Demo mode — simulated packets")
+        self.status.setText("● Demo mode — simulated packets")
 
     def demo_packet(self):
         self.add_packet({
