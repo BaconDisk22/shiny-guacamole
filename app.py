@@ -9,7 +9,7 @@ from PySide6.QtCore import QThread, Signal, QTimer, QSettings
 from PySide6.QtWidgets import (
     QApplication, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
     QMainWindow, QMessageBox, QPushButton, QTableWidget,
-    QTableWidgetItem, QVBoxLayout, QWidget,
+    QTableWidgetItem, QVBoxLayout, QWidget, QAbstractItemView,
 )
 
 
@@ -110,6 +110,9 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.stats)
         self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["Time", "From", "Port", "RSSI", "SNR"])
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setAlternatingRowColors(True)
         self.table.horizontalHeader().setStretchLastSection(True)
         layout.addWidget(self.table)
 
