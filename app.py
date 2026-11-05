@@ -81,6 +81,11 @@ class MainWindow(QMainWindow):
         self.seen_nodes = set()
         self.port_counts = {}
         self.radio = None
+        self.retry_count = 0
+        self.retry_timer = QTimer(self)
+        self.retry_timer.setSingleShot(True)
+        self.retry_timer.timeout.connect(self.connect_radio)
+        self.reconnect_enabled = False
         self.demo = QTimer(self)
         self.demo.timeout.connect(self.demo_packet)
 
@@ -129,6 +134,15 @@ class MainWindow(QMainWindow):
             self.table.setItem(row, col, QTableWidgetItem(data.get(key, "")))
         self.table.scrollToBottom()
 
+    def on_radio_status(self, message):
+        self.status.setText(message)
+        if message.startswith("Connected to "):
+            self.retry_count = 0
+        elif message.startswith("Connection failed:") and self.reconnect_enabled:
+            self.retry_count += 1
+            if self.retry_count <= 5:
+                self.retry_timer.start(min(30000, 2000 * (2 ** (self.retry_count - 1))))
+
     def _radio_finished(self):
         radio = self.sender()
         if radio is self.radio:
@@ -147,16 +161,21 @@ class MainWindow(QMainWindow):
             self.status.setText("Disconnect the current radio before connecting again.")
             return
         self.demo.stop()
+        self.retry_timer.stop()
+        self.reconnect_enabled = True
         self.settings.setValue("radio_host", host)
         self.radio = RadioThread(host, self)
         self.radio.packet.connect(self.add_packet)
-        self.radio.status.connect(self.status.setText)
+        self.radio.status.connect(self.on_radio_status)
         self.radio.finished.connect(self._radio_finished)
         self.connect_btn.setEnabled(False)
         self.status.setText("◌ Connecting to radio...")
         self.radio.start()
 
     def disconnect_radio(self):
+        self.reconnect_enabled = False
+        self.retry_timer.stop()
+        self.retry_count = 0
         if self.radio is not None:
             self.radio.stop()
             self.status.setText("◌ Disconnecting...")
@@ -171,6 +190,8 @@ class MainWindow(QMainWindow):
         if self.radio is not None:
             self.status.setText("Disconnect the radio before starting demo mode.")
             return
+        self.reconnect_enabled = False
+        self.retry_timer.stop()
         self.demo.start(1200)
         self.status.setText("● Demo mode — simulated packets")
 
@@ -207,6 +228,8 @@ class MainWindow(QMainWindow):
                 self.status.setText(f"Exported {len(self.rows)} packets to CSV")
 
     def closeEvent(self, event):
+        self.reconnect_enabled = False
+        self.retry_timer.stop()
         self.settings.setValue("radio_host", self.host.text().strip())
         self.demo.stop()
         if self.radio is not None:
