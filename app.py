@@ -193,10 +193,15 @@ class MainWindow(QMainWindow):
             str(Path.home() / "meshtastic-packets.csv"), "CSV files (*.csv)"
         )
         if path:
-            with open(path, "w", newline="", encoding="utf-8") as file:
-                writer = csv.DictWriter(file, fieldnames=["time", "from", "type", "rssi", "snr"])
-                writer.writeheader()
-                writer.writerows(self.rows)
+            try:
+                with open(path, "w", newline="", encoding="utf-8") as file:
+                    writer = csv.DictWriter(file, fieldnames=["time", "from", "type", "rssi", "snr"])
+                    writer.writeheader()
+                    writer.writerows(self.rows)
+            except OSError as exc:
+                QMessageBox.critical(self, "Export failed", str(exc))
+            else:
+                self.status.setText(f"Exported {len(self.rows)} packets to CSV")
 
     def closeEvent(self, event):
         self.settings.setValue("radio_host", self.host.text().strip())
