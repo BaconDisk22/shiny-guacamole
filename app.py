@@ -77,6 +77,8 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Meshtastic Sniffer TCP — Intel Mac")
         self.resize(900, 520)
         self.rows = []
+        self.seen_nodes = set()
+        self.port_counts = {}
         self.radio = None
         self.demo = QTimer(self)
         self.demo.timeout.connect(self.demo_packet)
@@ -100,6 +102,8 @@ class MainWindow(QMainWindow):
         layout.addLayout(controls)
         self.status = QLabel("Disconnected")
         layout.addWidget(self.status)
+        self.stats = QLabel("Packets: 0  |  Nodes: 0  |  Message types: 0")
+        layout.addWidget(self.stats)
         self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels(["Time", "From", "Port", "RSSI", "SNR"])
         self.table.horizontalHeader().setStretchLastSection(True)
@@ -107,6 +111,11 @@ class MainWindow(QMainWindow):
 
     def add_packet(self, data):
         self.rows.append(data)
+        if data.get("from"):
+            self.seen_nodes.add(data["from"])
+        kind = data.get("type") or "UNKNOWN"
+        self.port_counts[kind] = self.port_counts.get(kind, 0) + 1
+        self.stats.setText(f"Packets: {len(self.rows)}  |  Nodes: {len(self.seen_nodes)}  |  Message types: {len(self.port_counts)}")
         row = self.table.rowCount()
         self.table.insertRow(row)
         for col, key in enumerate(("time", "from", "type", "rssi", "snr")):
