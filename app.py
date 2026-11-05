@@ -203,6 +203,10 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    theme_path = Path(__file__).resolve().parent / "dashboard.qss"
+    if theme_path.is_file():
+        app.setStyleSheet(theme_path.read_text(encoding="utf-8"))
     window = MainWindow()
+    window.table.setAlternatingRowColors(True)
     window.show()
     sys.exit(app.exec())
