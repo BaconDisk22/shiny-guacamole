@@ -5,7 +5,7 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QThread, Signal, QTimer
+from PySide6.QtCore import QThread, Signal, QTimer, QSettings
 from PySide6.QtWidgets import (
     QApplication, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
     QMainWindow, QMessageBox, QPushButton, QTableWidget,
@@ -76,6 +76,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Meshtastic Sniffer TCP — Intel Mac")
         self.resize(900, 520)
+        self.settings = QSettings('BaconDisk22', 'MeshtasticSnifferTCP')
         self.rows = []
         self.seen_nodes = set()
         self.port_counts = {}
@@ -89,6 +90,7 @@ class MainWindow(QMainWindow):
         controls = QHBoxLayout()
         self.host = QLineEdit()
         self.host.setPlaceholderText("Radio IP address (e.g. 192.168.1.50)")
+        self.host.setText(self.settings.value("radio_host", "", type=str))
         self.connect_btn = QPushButton("Connect TCP")
         self.connect_btn.clicked.connect(self.connect_radio)
         self.disconnect_btn = QPushButton("Disconnect")
@@ -140,6 +142,7 @@ class MainWindow(QMainWindow):
             self.status.setText("Disconnect the current radio before connecting again.")
             return
         self.demo.stop()
+        self.settings.setValue("radio_host", host)
         self.radio = RadioThread(host, self)
         self.radio.packet.connect(self.add_packet)
         self.radio.status.connect(self.status.setText)
@@ -187,6 +190,7 @@ class MainWindow(QMainWindow):
                 writer.writerows(self.rows)
 
     def closeEvent(self, event):
+        self.settings.setValue("radio_host", self.host.text().strip())
         self.demo.stop()
         if self.radio is not None:
             self.radio.stop()
