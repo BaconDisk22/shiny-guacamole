@@ -77,6 +77,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Meshtastic Sniffer TCP — Intel Mac")
         self.resize(900, 520)
         self.settings = QSettings('BaconDisk22', 'MeshtasticSnifferTCP')
+        self.max_packets = 5000
         self.rows = []
         self.seen_nodes = set()
         self.port_counts = {}
@@ -136,6 +137,14 @@ class MainWindow(QMainWindow):
 
     def add_packet(self, data):
         self.rows.append(data)
+        if len(self.rows) > self.max_packets:
+            self.rows.pop(0)
+            self.table.removeRow(0)
+            self.seen_nodes = {row["from"] for row in self.rows if row.get("from")}
+            self.port_counts = {}
+            for row in self.rows:
+                kind = row.get("type") or "UNKNOWN"
+                self.port_counts[kind] = self.port_counts.get(kind, 0) + 1
         if data.get("from"):
             self.seen_nodes.add(data["from"])
         kind = data.get("type") or "UNKNOWN"
