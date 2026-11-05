@@ -97,9 +97,11 @@ class MainWindow(QMainWindow):
         self.disconnect_btn.clicked.connect(self.disconnect_radio)
         self.demo_btn = QPushButton("Demo Mode")
         self.demo_btn.clicked.connect(self.toggle_demo)
+        clear_btn = QPushButton("Clear Log")
+        clear_btn.clicked.connect(self.clear_log)
         export_btn = QPushButton("Export CSV")
         export_btn.clicked.connect(self.export_csv)
-        for item in (self.host, self.connect_btn, self.disconnect_btn, self.demo_btn, export_btn):
+        for item in (self.host, self.connect_btn, self.disconnect_btn, self.demo_btn, clear_btn, export_btn):
             controls.addWidget(item)
         layout.addLayout(controls)
         self.status = QLabel("Disconnected")
@@ -177,6 +179,13 @@ class MainWindow(QMainWindow):
             "rssi": str(random.randint(-120, -45)),
             "snr": str(round(random.uniform(-15, 12), 1)),
         })
+
+    def clear_log(self):
+        self.rows.clear()
+        self.seen_nodes.clear()
+        self.port_counts.clear()
+        self.table.setRowCount(0)
+        self.stats.setText("Packets: 0  |  Nodes: 0  |  Message types: 0")
 
     def export_csv(self):
         path, _ = QFileDialog.getSaveFileName(
