@@ -9,7 +9,7 @@ from PySide6.QtCore import QThread, Signal, QTimer, QSettings
 from PySide6.QtWidgets import (
     QApplication, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
     QMainWindow, QMessageBox, QPushButton, QTableWidget,
-    QTableWidgetItem, QVBoxLayout, QWidget, QAbstractItemView,
+    QTableWidgetItem, QVBoxLayout, QWidget, QAbstractItemView, QSplitter,
 )
 
 
@@ -123,7 +123,16 @@ class MainWindow(QMainWindow):
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.horizontalHeader().setStretchLastSection(True)
-        layout.addWidget(self.table)
+        self.node_table = QTableWidget(0, 2)
+        self.node_table.setHorizontalHeaderLabels(["Node ID", "Packets"])
+        self.node_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.node_table.horizontalHeader().setStretchLastSection(True)
+        splitter = QSplitter()
+        splitter.addWidget(self.table)
+        splitter.addWidget(self.node_table)
+        splitter.setStretchFactor(0, 3)
+        splitter.setStretchFactor(1, 1)
+        layout.addWidget(splitter)
 
     def add_packet(self, data):
         self.rows.append(data)
@@ -136,6 +145,7 @@ class MainWindow(QMainWindow):
         self.table.insertRow(row)
         for col, key in enumerate(("time", "from", "type", "rssi", "snr")):
             self.table.setItem(row, col, QTableWidgetItem(data.get(key, "")))
+        self.refresh_nodes()
         self.apply_filter()
         self.table.scrollToBottom()
 
@@ -209,6 +219,17 @@ class MainWindow(QMainWindow):
             "snr": str(round(random.uniform(-15, 12), 1)),
         })
 
+    def refresh_nodes(self):
+        counts = {}
+        for packet in self.rows:
+            node = packet.get("from")
+            if node:
+                counts[node] = counts.get(node, 0) + 1
+        self.node_table.setRowCount(len(counts))
+        for row, (node, count) in enumerate(sorted(counts.items(), key=lambda item: -item[1])):
+            self.node_table.setItem(row, 0, QTableWidgetItem(node))
+            self.node_table.setItem(row, 1, QTableWidgetItem(str(count)))
+
     def apply_filter(self):
         query = self.filter_input.text().strip().casefold()
         for index, packet in enumerate(self.rows):
@@ -220,6 +241,7 @@ class MainWindow(QMainWindow):
         self.seen_nodes.clear()
         self.port_counts.clear()
         self.table.setRowCount(0)
+        self.node_table.setRowCount(0)
         self.stats.setText("Packets: 0  |  Nodes: 0  |  Message types: 0")
 
     def export_csv(self):
