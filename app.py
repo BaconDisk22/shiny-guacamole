@@ -86,6 +86,7 @@ class MainWindow(QMainWindow):
         self.retry_timer.setSingleShot(True)
         self.retry_timer.timeout.connect(self.connect_radio)
         self.reconnect_enabled = False
+        self.demo_nodes = ["!a1b2c3d4", "!b2c3d4e5", "!c3d4e5f6", "!d4e5f6a7"]
         self.demo = QTimer(self)
         self.demo.timeout.connect(self.demo_packet)
 
@@ -203,7 +204,7 @@ class MainWindow(QMainWindow):
     def demo_packet(self):
         self.add_packet({
             "time": datetime.now().strftime("%H:%M:%S"),
-            "from": "!%08x" % random.getrandbits(32),
+            "from": random.choice(self.demo_nodes),
             "type": random.choice(["TEXT_MESSAGE_APP", "POSITION_APP", "NODEINFO_APP"]),
             "rssi": str(random.randint(-120, -45)),
             "snr": str(round(random.uniform(-15, 12), 1)),
