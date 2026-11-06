@@ -139,6 +139,9 @@ class MainWindow(QMainWindow):
         self.node_table.setHorizontalHeaderLabels(["Node ID", "Packets"])
         self.node_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.node_table.horizontalHeader().setStretchLastSection(True)
+        self.node_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.copy_node_btn = QPushButton("Copy Selected Node ID")
+        self.copy_node_btn.clicked.connect(self.copy_selected_node)
         self.node_table.cellDoubleClicked.connect(self.filter_by_node)
         splitter = QSplitter()
         splitter.addWidget(self.table)
@@ -147,6 +150,7 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(1, 1)
         layout.addWidget(splitter)
         layout.addWidget(self.packet_details)
+        layout.addWidget(self.copy_node_btn)
 
     def add_packet(self, data):
         self.rows.append(data)
@@ -258,6 +262,13 @@ class MainWindow(QMainWindow):
         item = self.node_table.item(row, 0)
         if item is not None:
             self.filter_input.setText(item.text())
+
+    def copy_selected_node(self):
+        row = self.node_table.currentRow()
+        item = self.node_table.item(row, 0) if row >= 0 else None
+        if item is not None:
+            QApplication.clipboard().setText(item.text())
+            self.status.setText("Copied node ID: " + item.text())
 
     def refresh_nodes(self):
         counts = {}
