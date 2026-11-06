@@ -137,6 +137,7 @@ class MainWindow(QMainWindow):
         self.node_table.setHorizontalHeaderLabels(["Node ID", "Packets"])
         self.node_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.node_table.horizontalHeader().setStretchLastSection(True)
+        self.node_table.cellDoubleClicked.connect(self.filter_by_node)
         splitter = QSplitter()
         splitter.addWidget(self.table)
         splitter.addWidget(self.node_table)
@@ -246,6 +247,11 @@ class MainWindow(QMainWindow):
             self.packet_details.setPlainText("\\n".join(f"{key}: {packet.get(key, '')}" for key in ("time", "from", "type", "rssi", "snr")))
         else:
             self.packet_details.clear()
+
+    def filter_by_node(self, row, column):
+        item = self.node_table.item(row, 0)
+        if item is not None:
+            self.filter_input.setText(item.text())
 
     def refresh_nodes(self):
         counts = {}
