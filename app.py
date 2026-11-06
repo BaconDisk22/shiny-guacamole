@@ -143,7 +143,7 @@ class MainWindow(QMainWindow):
             self.table.removeRow(0)
             self.seen_nodes = {row["from"] for row in self.rows if row.get("from")}
             self.port_counts = {}
-            for row in self.rows:
+            for row in self.rows[:-1]:
                 kind = row.get("type") or "UNKNOWN"
                 self.port_counts[kind] = self.port_counts.get(kind, 0) + 1
         if data.get("from"):
