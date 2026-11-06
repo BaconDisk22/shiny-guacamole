@@ -78,6 +78,7 @@ class MainWindow(QMainWindow):
         self.resize(900, 520)
         self.settings = QSettings('BaconDisk22', 'MeshtasticSnifferTCP')
         self.max_packets = 5000
+        self.display_paused = False
         self.rows = []
         self.seen_nodes = set()
         self.port_counts = {}
@@ -104,11 +105,13 @@ class MainWindow(QMainWindow):
         self.disconnect_btn.clicked.connect(self.disconnect_radio)
         self.demo_btn = QPushButton("Demo Mode")
         self.demo_btn.clicked.connect(self.toggle_demo)
+        self.pause_btn = QPushButton("Pause Display")
+        self.pause_btn.clicked.connect(self.toggle_pause)
         clear_btn = QPushButton("Clear Log")
         clear_btn.clicked.connect(self.clear_log)
         export_btn = QPushButton("Export CSV")
         export_btn.clicked.connect(self.export_csv)
-        for item in (self.host, self.connect_btn, self.disconnect_btn, self.demo_btn, clear_btn, export_btn):
+        for item in (self.host, self.connect_btn, self.disconnect_btn, self.demo_btn, self.pause_btn, clear_btn, export_btn):
             controls.addWidget(item)
         layout.addLayout(controls)
         self.status = QLabel("● Disconnected")
@@ -157,7 +160,8 @@ class MainWindow(QMainWindow):
             self.table.setItem(row, col, QTableWidgetItem(data.get(key, "")))
         self.refresh_nodes()
         self.apply_filter()
-        self.table.scrollToBottom()
+        if not self.display_paused:
+            self.table.scrollToBottom()
 
     def on_radio_status(self, message):
         self.status.setText(message)
@@ -245,6 +249,12 @@ class MainWindow(QMainWindow):
         for index, packet in enumerate(self.rows):
             searchable = " ".join(str(packet.get(key, "")) for key in ("from", "type")).casefold()
             self.table.setRowHidden(index, bool(query) and query not in searchable)
+
+    def toggle_pause(self):
+        self.display_paused = not self.display_paused
+        self.pause_btn.setText("Resume Auto-scroll" if self.display_paused else "Pause Display")
+        if not self.display_paused:
+            self.table.scrollToBottom()
 
     def clear_log(self):
         self.rows.clear()
