@@ -9,7 +9,7 @@ from PySide6.QtCore import QThread, Signal, QTimer, QSettings
 from PySide6.QtWidgets import (
     QApplication, QFileDialog, QHBoxLayout, QLabel, QLineEdit,
     QMainWindow, QMessageBox, QPushButton, QTableWidget,
-    QTableWidgetItem, QVBoxLayout, QWidget, QAbstractItemView, QSplitter,
+    QTableWidgetItem, QVBoxLayout, QWidget, QAbstractItemView, QSplitter, QTextEdit,
 )
 
 
@@ -128,6 +128,11 @@ class MainWindow(QMainWindow):
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
         self.table.horizontalHeader().setStretchLastSection(True)
+        self.packet_details = QTextEdit()
+        self.packet_details.setReadOnly(True)
+        self.packet_details.setPlaceholderText("Select a packet to inspect its available metadata")
+        self.packet_details.setMaximumHeight(110)
+        self.table.itemSelectionChanged.connect(self.show_packet_details)
         self.node_table = QTableWidget(0, 2)
         self.node_table.setHorizontalHeaderLabels(["Node ID", "Packets"])
         self.node_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -138,6 +143,7 @@ class MainWindow(QMainWindow):
         splitter.setStretchFactor(0, 3)
         splitter.setStretchFactor(1, 1)
         layout.addWidget(splitter)
+        layout.addWidget(self.packet_details)
 
     def add_packet(self, data):
         self.rows.append(data)
@@ -233,6 +239,14 @@ class MainWindow(QMainWindow):
             "snr": str(round(random.uniform(-15, 12), 1)),
         })
 
+    def show_packet_details(self):
+        index = self.table.currentRow()
+        if 0 <= index < len(self.rows):
+            packet = self.rows[index]
+            self.packet_details.setPlainText("\\n".join(f"{key}: {packet.get(key, '')}" for key in ("time", "from", "type", "rssi", "snr")))
+        else:
+            self.packet_details.clear()
+
     def refresh_nodes(self):
         counts = {}
         for packet in self.rows:
@@ -261,6 +275,7 @@ class MainWindow(QMainWindow):
         self.seen_nodes.clear()
         self.port_counts.clear()
         self.table.setRowCount(0)
+        self.packet_details.clear()
         self.node_table.setRowCount(0)
         self.stats.setText("Packets: 0  |  Nodes: 0  |  Message types: 0")
 
