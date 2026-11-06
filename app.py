@@ -150,6 +150,8 @@ class MainWindow(QMainWindow):
         if len(self.rows) > self.max_packets:
             self.rows.pop(0)
             self.table.removeRow(0)
+            if hasattr(self, "packet_details"):
+                self.packet_details.clear()
             self.seen_nodes = {row["from"] for row in self.rows if row.get("from")}
             self.port_counts = {}
             for row in self.rows[:-1]:
@@ -166,6 +168,8 @@ class MainWindow(QMainWindow):
             self.table.setItem(row, col, QTableWidgetItem(data.get(key, "")))
         self.refresh_nodes()
         self.apply_filter()
+        if hasattr(self, "packet_details") and self.table.currentRow() >= 0:
+            self.show_packet_details()
         if not self.display_paused:
             self.table.scrollToBottom()
 
