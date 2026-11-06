@@ -109,9 +109,11 @@ class MainWindow(QMainWindow):
         self.pause_btn.clicked.connect(self.toggle_pause)
         clear_btn = QPushButton("Clear Log")
         clear_btn.clicked.connect(self.clear_log)
+        visible_export_btn = QPushButton("Export Filtered CSV")
+        visible_export_btn.clicked.connect(self.export_filtered_csv)
         export_btn = QPushButton("Export CSV")
         export_btn.clicked.connect(self.export_csv)
-        for item in (self.host, self.connect_btn, self.disconnect_btn, self.demo_btn, self.pause_btn, clear_btn, export_btn):
+        for item in (self.host, self.connect_btn, self.disconnect_btn, self.demo_btn, self.pause_btn, clear_btn, export_btn, visible_export_btn):
             controls.addWidget(item)
         layout.addLayout(controls)
         self.status = QLabel("● Disconnected")
@@ -288,6 +290,21 @@ class MainWindow(QMainWindow):
         self.packet_details.clear()
         self.node_table.setRowCount(0)
         self.stats.setText("Packets: 0  |  Nodes: 0  |  Message types: 0")
+
+    def export_filtered_csv(self):
+        visible = [packet for index, packet in enumerate(self.rows) if not self.table.isRowHidden(index)]
+        path, _ = QFileDialog.getSaveFileName(self, "Export filtered packet log", str(Path.home() / "meshtastic-filtered-packets.csv"), "CSV files (*.csv)")
+        if not path:
+            return
+        try:
+            with open(path, "w", newline="", encoding="utf-8") as file:
+                writer = csv.DictWriter(file, fieldnames=["time", "from", "type", "rssi", "snr"])
+                writer.writeheader()
+                writer.writerows(visible)
+        except OSError as exc:
+            QMessageBox.critical(self, "Export failed", str(exc))
+        else:
+            self.status.setText(f"Exported {len(visible)} filtered packets")
 
     def export_csv(self):
         path, _ = QFileDialog.getSaveFileName(
