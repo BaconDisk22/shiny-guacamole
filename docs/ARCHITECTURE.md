@@ -9,6 +9,9 @@ The monitor sees only packets surfaced by the connected radio and its configured
 - Radio I/O uses a QThread, separate from the GUI thread.
 - Incoming packets are normalized to timestamp, source ID, port, RSSI, and SNR.
 - The GUI retains at most 5,000 rows in memory; CSV export is user-initiated.
+- Live packets are buffered and applied to the table every 200 ms in one batch. A full window redraw costs tens of milliseconds on macOS, so redrawing per packet capped throughput near 25 packets/s; batching keeps redraws at about 5 per second regardless of traffic.
+- Per-packet work is O(1) in the size of the history: node/port tallies are updated incrementally, the filter is applied only to the new row, the node table refreshes at most every 300 ms, and auto-scroll runs at most every 150 ms.
+- Connection events (connect, drop, retry, give-up, user disconnect) are kept in memory for **Copy Diagnostics** and written to a rotating log (512 KB × 4 files) at `~/Library/Logs/Meshtastic Sniffer TCP/app.log`, along with Meshtastic library warnings. The log does not contain packet contents.
 - Demo mode generates synthetic traffic and must not be mistaken for live RF evidence.
 - Initial connection failures and dropped sessions both get up to 5 automatic reconnect attempts (2s, 4s, 8s, 16s, 30s); a successful connection resets the count and **Disconnect** cancels any pending attempt.
 - A dropped session is detected three ways: the library's `meshtastic.connection.lost` event (only for the interface the worker owns), the library's reader thread exiting, and OS-level TCP keepalive (probes after ~15s idle, gives up after ~35s) so a radio that loses power or Wi-Fi does not leave the socket blocked indefinitely.
