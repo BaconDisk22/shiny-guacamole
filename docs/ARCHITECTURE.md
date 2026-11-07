@@ -22,6 +22,7 @@ The monitor sees only packets surfaced by the connected radio and its configured
 - Dropped-session detection and reconnect are covered by fake-interface regression tests only; they have not yet been verified against a physical radio losing power or Wi-Fi.
 - The Meshtastic library can also reconnect a closed socket internally; when that succeeds the session simply continues without a status change.
 - Radio firmware/library versions may expose different metadata.
+- PySide6 6.12.0 is excluded: its Linux wheels release one reference to `None` per void Qt call, which aborts Python 3.11 after a few thousand calls. `tests/test_binding_sanity.py` fails fast if a future release repeats this. The macOS 6.12.0 wheel did not show the bug when measured, but the exclusion keeps CI and the Intel build on the same Qt line.
 - Node identifiers and packet metadata can be sensitive; exports should be handled responsibly.
 - GitHub Actions packaging and headless UI tests are not substitutes for Intel Mac and live-radio tests.
 
