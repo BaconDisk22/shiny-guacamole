@@ -296,6 +296,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.stats)
         self.diagnostics = QLabel()
         self.diagnostics.setObjectName("diagnostics")
+        self.diagnostics.setWordWrap(True)
         layout.addWidget(self.diagnostics)
         self.filter_input = QLineEdit()
         self.filter_input.setPlaceholderText("Filter packets by node ID or message type...")
