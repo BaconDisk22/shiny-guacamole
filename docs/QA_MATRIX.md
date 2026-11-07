@@ -10,7 +10,7 @@ The GitHub Actions Python checks and Intel packaging workflow do **not** verify 
 | Copy Node ID | Headless clipboard test | macOS clipboard integration |
 | CSV exports | Syntax/GUI smoke checks | Export paths, permissions, filtered contents |
 | Demo mode | Screenshot workflow available | Visual review and screenshot approval |
-| TCP connection | Build/import checks only | Live Wi-Fi/TCP radio, loss/recovery, app shutdown |
+| TCP connection | Fake-interface tests: loss event, dead reader, keepalive, backoff, give-up, no duplicate subscriptions | Live Wi-Fi/TCP radio, loss/recovery timing, app shutdown |
 | Intel Mac packaging | GitHub Actions artifact | Download and launch on physical Intel Mac |
 
 ## Before beta

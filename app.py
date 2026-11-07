@@ -1,5 +1,6 @@
 import csv
 import random
+import socket
 import sys
 import threading
 from datetime import datetime
@@ -24,44 +25,131 @@ def packet_row(packet):
     }
 
 
+RECEIVE_TOPIC = "meshtastic.receive"
+LOST_TOPIC = "meshtastic.connection.lost"
+MAX_RECONNECT_ATTEMPTS = 5
+
+
+def reconnect_delay_ms(attempt):
+    """Bounded exponential backoff: 2s, 4s, 8s, 16s, then capped at 30s."""
+    return min(30000, 2000 * (2 ** (max(1, attempt) - 1)))
+
+
+def enable_tcp_keepalive(sock, idle=15, interval=5, count=4):
+    """Ask the OS to probe an idle TCP link so a vanished radio is noticed.
+
+    Without keepalive a radio that loses power or Wi-Fi leaves recv() blocked
+    indefinitely. With these values a dead link errors out after roughly
+    idle + interval * count seconds (about 35s). Returns False when the socket
+    or platform does not support the options.
+    """
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        idle_option = getattr(socket, "TCP_KEEPIDLE", None) or getattr(socket, "TCP_KEEPALIVE", None)
+        if idle_option is not None:
+            sock.setsockopt(socket.IPPROTO_TCP, idle_option, idle)
+        if hasattr(socket, "TCP_KEEPINTVL"):
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, interval)
+        if hasattr(socket, "TCP_KEEPCNT"):
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, count)
+        return True
+    except (OSError, AttributeError, TypeError):
+        return False
+
+
+def _default_interface_factory(host):
+    from meshtastic.tcp_interface import TCPInterface
+    return TCPInterface(hostname=host)
+
+
 class RadioThread(QThread):
+    """Owns one TCP session from connect to close.
+
+    When run() returns, ``end_reason`` is one of ``"stopped"`` (user asked),
+    ``"failed"`` (never connected) or ``"lost"`` (connected, then dropped),
+    and ``end_detail`` explains why. Subscriptions are always removed and the
+    interface closed before the thread finishes, so a reconnect never stacks
+    duplicate packet callbacks.
+    """
+
     packet = Signal(dict)
     status = Signal(str)
+    connected = Signal(str)
 
-    def __init__(self, host, parent=None):
+    def __init__(self, host, parent=None, interface_factory=None, pubsub=None, poll_interval=0.25):
         super().__init__(parent)
         self.host = host
+        self._interface_factory = interface_factory or _default_interface_factory
+        self._pubsub = pubsub
+        self._poll_interval = poll_interval
         self._stop = threading.Event()
+        self._lost = threading.Event()
+        self._interface = None
+        self.end_reason = "stopped"
+        self.end_detail = ""
 
     def stop(self):
         self._stop.set()
 
     def on_packet(self, packet, interface=None):
-        if not self._stop.is_set():
-            self.packet.emit(packet_row(packet))
+        if self._stop.is_set():
+            return
+        if self._interface is not None and interface is not None and interface is not self._interface:
+            return
+        self.packet.emit(packet_row(packet))
+
+    def on_connection_lost(self, interface=None):
+        # Only trust loss events for the interface this thread owns; a late
+        # event from a previous session must not tear down a new one.
+        if self._interface is not None and interface is self._interface:
+            self._lost.set()
+
+    def link_problem(self, interface):
+        """Return why the established link is dead, or None while it is healthy."""
+        if self._lost.is_set():
+            return "radio closed the connection"
+        reader = getattr(interface, "_rxThread", None)
+        if reader is not None and getattr(reader, "ident", None) is not None and not reader.is_alive():
+            return "radio stopped responding"
+        return None
 
     def run(self):
         interface = None
-        subscribed = False
+        subscribed = []
+        reason, detail = "stopped", ""
         try:
-            from pubsub import pub
-            from meshtastic.tcp_interface import TCPInterface
+            pub = self._pubsub
+            if pub is None:
+                from pubsub import pub
             if self._stop.is_set():
                 return
-            pub.subscribe(self.on_packet, "meshtastic.receive")
-            subscribed = True
-            interface = TCPInterface(hostname=self.host)
-            if not self._stop.is_set():
-                self.status.emit("Connected to " + self.host)
-            while not self._stop.wait(0.25):
-                pass
+            for topic, listener in ((RECEIVE_TOPIC, self.on_packet), (LOST_TOPIC, self.on_connection_lost)):
+                pub.subscribe(listener, topic)
+                subscribed.append((topic, listener))
+            interface = self._interface_factory(self.host)
+            self._interface = interface
+            if self._stop.is_set():
+                return
+            self.connected.emit(self.host)
+            self.status.emit("● Connected to " + self.host)
+            keepalive_socket = None
+            while not self._stop.wait(self._poll_interval):
+                sock = getattr(interface, "socket", None)
+                if sock is not None and sock is not keepalive_socket:
+                    # The library may silently swap sockets when it reconnects
+                    # internally, so re-arm keepalive on every new socket.
+                    enable_tcp_keepalive(sock)
+                    keepalive_socket = sock
+                problem = self.link_problem(interface)
+                if problem:
+                    reason, detail = "lost", problem
+                    break
         except Exception as exc:
-            if not self._stop.is_set():
-                self.status.emit("Connection failed: " + str(exc))
+            reason, detail = "failed", str(exc) or exc.__class__.__name__
         finally:
-            if subscribed:
+            for topic, listener in subscribed:
                 try:
-                    pub.unsubscribe(self.on_packet, "meshtastic.receive")
+                    pub.unsubscribe(listener, topic)
                 except Exception:
                     pass
             if interface is not None:
@@ -69,11 +157,15 @@ class RadioThread(QThread):
                     interface.close()
                 except Exception:
                     pass
+            if self._stop.is_set():
+                reason, detail = "stopped", ""
+            self.end_reason, self.end_detail = reason, detail
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
+    def __init__(self, radio_factory=None):
         super().__init__()
+        self.radio_factory = radio_factory or RadioThread
         self.setWindowTitle("Meshtastic Sniffer TCP — Intel Mac")
         self.resize(900, 520)
         self.settings = QSettings('BaconDisk22', 'MeshtasticSnifferTCP')
@@ -84,9 +176,11 @@ class MainWindow(QMainWindow):
         self.port_counts = {}
         self.radio = None
         self.retry_count = 0
+        self.max_retries = MAX_RECONNECT_ATTEMPTS
+        self.reconnect_host = ""
         self.retry_timer = QTimer(self)
         self.retry_timer.setSingleShot(True)
-        self.retry_timer.timeout.connect(self.connect_radio)
+        self.retry_timer.timeout.connect(self._retry_connect)
         self.reconnect_enabled = False
         self.demo_nodes = ["!a1b2c3d4", "!b2c3d4e5", "!c3d4e5f6", "!d4e5f6a7"]
         self.demo = QTimer(self)
@@ -182,21 +276,51 @@ class MainWindow(QMainWindow):
 
     def on_radio_status(self, message):
         self.status.setText(message)
-        if message.startswith("Connected to "):
-            self.retry_count = 0
-        elif message.startswith("Connection failed:") and self.reconnect_enabled:
-            self.retry_count += 1
-            if self.retry_count <= 5:
-                self.retry_timer.start(min(30000, 2000 * (2 ** (self.retry_count - 1))))
+
+    def _on_radio_connected(self, host):
+        self.retry_count = 0
 
     def _radio_finished(self):
         radio = self.sender()
         if radio is self.radio:
             self.radio = None
             self.connect_btn.setEnabled(True)
-            if not self.demo.isActive():
-                self.status.setText("Disconnected")
+            reason = getattr(radio, "end_reason", "stopped")
+            detail = getattr(radio, "end_detail", "")
+            if reason in ("failed", "lost") and self.reconnect_enabled:
+                self._schedule_reconnect(reason, detail)
+            elif reason == "failed":
+                self.status.setText("✕ Connection failed: " + detail)
+            elif not self.demo.isActive():
+                self.status.setText("● Disconnected")
         radio.deleteLater()
+
+    def _schedule_reconnect(self, reason, detail):
+        # Called only once the previous worker has fully finished, so the old
+        # interface is closed and its subscriptions are gone before retrying.
+        label = "Connection lost" if reason == "lost" else "Connection failed"
+        self.retry_count += 1
+        if self.retry_count > self.max_retries:
+            self.reconnect_enabled = False
+            self.status.setText(
+                f"✕ {label}: {detail} — gave up after {self.max_retries} attempts. "
+                "Select Connect TCP to try again."
+            )
+            return
+        delay = reconnect_delay_ms(self.retry_count)
+        self.retry_timer.start(delay)
+        self.status.setText(
+            f"◌ {label}: {detail} — reconnecting in {delay // 1000}s "
+            f"(attempt {self.retry_count}/{self.max_retries})"
+        )
+
+    def _retry_connect(self):
+        if self.reconnect_enabled and self.radio is None and self.reconnect_host:
+            self._start_radio(self.reconnect_host)
+            self.status.setText(
+                f"◌ Reconnecting to {self.reconnect_host} "
+                f"(attempt {self.retry_count}/{self.max_retries})..."
+            )
 
     def connect_radio(self):
         host = self.host.text().strip()
@@ -206,13 +330,19 @@ class MainWindow(QMainWindow):
         if self.radio is not None:
             self.status.setText("Disconnect the current radio before connecting again.")
             return
+        self.retry_count = 0
+        self._start_radio(host)
+
+    def _start_radio(self, host):
         self.demo.stop()
         self.retry_timer.stop()
         self.reconnect_enabled = True
+        self.reconnect_host = host
         self.settings.setValue("radio_host", host)
-        self.radio = RadioThread(host, self)
+        self.radio = self.radio_factory(host, self)
         self.radio.packet.connect(self.add_packet)
         self.radio.status.connect(self.on_radio_status)
+        self.radio.connected.connect(self._on_radio_connected)
         self.radio.finished.connect(self._radio_finished)
         self.connect_btn.setEnabled(False)
         self.status.setText("◌ Connecting to radio...")
@@ -226,7 +356,7 @@ class MainWindow(QMainWindow):
             self.radio.stop()
             self.status.setText("◌ Disconnecting...")
         elif not self.demo.isActive():
-            self.status.setText("Disconnected")
+            self.status.setText("● Disconnected")
 
     def toggle_demo(self):
         if self.demo.isActive():
