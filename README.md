@@ -12,10 +12,10 @@
 - Clear Log and CSV export with error handling
 - Demo mode for exploring the interface without radio hardware
 - Remembered radio IP/hostname between app launches
-- Retry failed TCP connection attempts with bounded backoff; manual disconnect cancels retries
+- Detect dropped TCP sessions and reconnect automatically with bounded backoff (up to 5 attempts); manual disconnect cancels retries
 - Dark, high-contrast desktop styling and read-only packet table
 
-**Known limitation:** Retry currently handles explicit connection failures; silent loss of an established TCP session is not yet reliably detected. Real-radio and Intel Mac hands-on verification are still required.
+**Known limitation:** Dropped-session detection and reconnect are tested with simulated interfaces only. Real-radio and Intel Mac hands-on verification are still required.
 
 ## Screenshots
 
